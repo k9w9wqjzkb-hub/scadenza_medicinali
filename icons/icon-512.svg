@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="40" fill="#0f0f14"/>
+  <rect x="24" y="24" width="144" height="144" rx="32" fill="url(#g)"/>
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#4c3fff"/>
+      <stop offset="100%" stop-color="#c084fc"/>
+    </linearGradient>
+  </defs>
+  <text x="96" y="120" font-size="80" text-anchor="middle" font-family="Apple Color Emoji,Segoe UI Emoji">💊</text>
+</svg>

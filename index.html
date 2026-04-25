@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="MediScadenza"/>
+  <meta name="theme-color" content="#0f0f14"/>
+  <meta name="description" content="Gestisci le scadenze dei medicinali di casa"/>
+  <link rel="manifest" href="manifest.json"/>
+  <link rel="apple-touch-icon" href="icons/icon-192.png"/>
+  <title>MediScadenza</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <style>
+    :root{
+      --bg:#0f0f14;--surface:#18181f;--surface2:#22222c;
+      --border:rgba(255,255,255,0.07);--text:#f0f0f5;--text2:#8888a0;--text3:#45455a;
+      --accent:#7c6fff;--accent2:#a78bfa;
+      --ok:#34d399;--warn:#fbbf24;--crit:#fb923c;--danger:#f87171;
+      --safe-top:env(safe-area-inset-top,0px);--safe-bot:env(safe-area-inset-bottom,0px);
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+    html,body{height:100%;overscroll-behavior:none}
+    body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);height:100dvh;overflow:hidden}
+
+    /* ─── LAYOUT ─── */
+    #app{display:flex;flex-direction:column;height:100dvh}
+    .screen{display:none;flex:1;overflow-y:auto;overscroll-behavior:contain;padding-bottom:calc(88px + var(--safe-bot))}
+    .screen.active{display:flex;flex-direction:column}
+
+    /* ─── TOPBAR ─── */
+    .topbar{padding:calc(var(--safe-top) + 20px) 20px 14px;position:sticky;top:0;z-index:10;background:linear-gradient(to bottom,var(--bg) 75%,transparent)}
+    .topbar h1{font-size:28px;font-weight:700;letter-spacing:-.5px;line-height:1.1}
+    .topbar .sub{font-size:13px;color:var(--text2);margin-top:3px}
+
+    /* ─── TABBAR ─── */
+    #tabbar{
+      position:fixed;bottom:0;left:0;right:0;
+      display:flex;align-items:center;justify-content:space-around;
+      padding:10px 8px calc(var(--safe-bot) + 10px);
+      background:rgba(12,12,18,0.88);
+      backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);
+      border-top:1px solid var(--border);z-index:200
+    }
+    .tab-btn{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;font-weight:600;color:var(--text3);cursor:pointer;padding:4px 10px;border:none;background:none;flex:1;transition:color .2s}
+    .tab-btn svg{width:22px;height:22px;transition:filter .2s}
+    .tab-btn.active{color:var(--accent2)}
+    .tab-btn.active svg{filter:drop-shadow(0 0 5px var(--accent))}
+    .fab{width:56px;height:56px;border-radius:18px;background:linear-gradient(135deg,var(--accent),#c084fc);border:none;color:#fff;font-size:28px;font-weight:300;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 8px 28px rgba(124,111,255,.5);flex-shrink:0;margin-bottom:6px;transition:transform .15s}
+    .fab:active{transform:scale(.92)}
+
+    /* ─── STAT GRID ─── */
+    .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 20px 4px}
+    .stat-card{border-radius:20px;padding:18px 16px;display:flex;flex-direction:column;gap:8px}
+    .stat-card .s-ico{font-size:22px}
+    .stat-card .s-val{font-size:38px;font-weight:700;font-family:'DM Mono',monospace;line-height:1}
+    .stat-card .s-lbl{font-size:12px;font-weight:600;opacity:.8}
+    .sc-purple{background:linear-gradient(135deg,#4c3fff,#7c6fff)}
+    .sc-green{background:linear-gradient(135deg,#059669,#34d399)}
+    .sc-orange{background:linear-gradient(135deg,#d97706,#fbbf24)}
+    .sc-red{background:linear-gradient(135deg,#dc2626,#f87171)}
+
+    /* ─── ALERT BANNER ─── */
+    .alert-banner{margin:0 20px 10px;padding:14px 16px;border-radius:16px;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.25);display:flex;align-items:center;gap:12px}
+    .alert-banner .ab-ico{font-size:22px;flex-shrink:0}
+    .alert-banner .ab-title{font-size:14px;font-weight:700;color:var(--danger)}
+    .alert-banner .ab-desc{font-size:12px;color:var(--text2);margin-top:2px}
+
+    /* ─── SECTION TITLE ─── */
+    .section-title{font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;padding:18px 20px 8px}
+
+    /* ─── MED ROW ─── */
+    .med-list{padding:0 20px;display:flex;flex-direction:column;gap:8px}
+    .med-row{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:14px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:background .15s}
+    .med-row:active{background:var(--surface2)}
+    .med-icon{width:46px;height:46px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+    .med-name{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .med-qty{font-size:12px;color:var(--text2);margin-top:2px}
+    .med-right{text-align:right;flex-shrink:0}
+    .sbadge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;margin-bottom:4px}
+    .med-exp{font-size:11px;color:var(--text3)}
+    .s-ok{background:rgba(52,211,153,.12);color:var(--ok)}
+    .s-warn{background:rgba(251,191,36,.12);color:var(--warn)}
+    .s-crit{background:rgba(251,146,60,.12);color:var(--crit)}
+    .s-exp{background:rgba(248,113,113,.12);color:var(--danger)}
+
+    /* ─── SEARCH & CHIPS ─── */
+    .search-wrap{padding:0 20px 10px}
+    .search-box{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 14px}
+    .search-box input{background:none;border:none;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;flex:1;outline:none}
+    .search-box input::placeholder{color:var(--text3)}
+    .chips-wrap{display:flex;gap:8px;overflow-x:auto;padding:0 20px 10px;scrollbar-width:none}
+    .chips-wrap::-webkit-scrollbar{display:none}
+    .chip{padding:7px 14px;border-radius:20px;font-size:13px;font-weight:600;white-space:nowrap;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text2);transition:all .2s;user-select:none}
+    .chip.active{background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:0 4px 14px rgba(124,111,255,.35)}
+
+    /* ─── CATEGORY ─── */
+    .cat-section{margin:0 20px 10px}
+    .cat-hdr{background:var(--surface);border:1px solid var(--border);border-radius:16px 16px 0 0;padding:14px 16px;display:flex;align-items:center;gap:10px;cursor:pointer}
+    .cat-hdr.solo{border-radius:16px}
+    .cat-hdr-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+    .cat-hdr-name{font-size:15px;font-weight:600;flex:1}
+    .cat-hdr-cnt{font-size:12px;font-weight:700;padding:3px 9px;border-radius:10px}
+    .cat-chev{color:var(--text3);font-size:11px;transition:transform .25s}
+    .cat-chev.open{transform:rotate(180deg)}
+    .cat-body{background:var(--surface);border:1px solid var(--border);border-top:none;border-radius:0 0 16px 16px;overflow:hidden}
+    .cat-row{padding:12px 16px;display:flex;align-items:center;gap:10px;border-top:1px solid var(--border);cursor:pointer}
+    .cat-row:first-child{border-top:none}
+    .cat-row:active{background:var(--surface2)}
+    .cat-row-name{flex:1;font-size:14px;font-weight:500}
+
+    /* ─── MODALS ─── */
+    .overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);z-index:300;display:none;align-items:flex-end}
+    .overlay.open{display:flex;animation:fdin .2s ease}
+    .modal{background:var(--surface);border-radius:28px 28px 0 0;width:100%;max-height:93dvh;overflow-y:auto;padding-bottom:calc(var(--safe-bot) + 20px);animation:sup .3s cubic-bezier(.34,1.4,.64,1)}
+    @keyframes fdin{from{opacity:0}to{opacity:1}}
+    @keyframes sup{from{transform:translateY(100%)}to{transform:translateY(0)}}
+    .modal-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:12px auto 0}
+    .modal-ttl{font-size:20px;font-weight:700;padding:16px 20px 0}
+
+    /* ─── FORM ─── */
+    .f-section{margin:16px 20px 0}
+    .f-label{font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px;display:block}
+    .f-input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:13px;padding:13px 14px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;outline:none;transition:border-color .2s}
+    .f-input:focus{border-color:var(--accent)}
+    textarea.f-input{resize:none;min-height:76px;line-height:1.5}
+    select.f-input{appearance:none;cursor:pointer}
+    .qty-row{display:flex;align-items:center;gap:10px}
+    .qty-btn{width:44px;height:44px;border-radius:12px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-weight:300;user-select:none}
+    .qty-val{font-size:22px;font-weight:700;font-family:'DM Mono',monospace;min-width:40px;text-align:center}
+    .cat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .cat-chip{padding:10px 12px;border-radius:12px;border:1px solid var(--border);background:var(--bg);color:var(--text2);font-size:13px;font-weight:500;display:flex;align-items:center;gap:6px;cursor:pointer;transition:all .2s}
+    .cat-chip.active{border-color:var(--accent);background:rgba(124,111,255,.12);color:var(--accent2)}
+    .notify-row{display:flex;gap:8px;flex-wrap:wrap}
+    .notify-chip{padding:7px 14px;border-radius:20px;border:1px solid var(--border);background:var(--bg);color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;user-select:none}
+    .notify-chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+    /* ─── BUTTONS ─── */
+    .btn-primary{display:block;margin:20px 20px 0;width:calc(100% - 40px);padding:16px;border-radius:16px;border:none;background:linear-gradient(135deg,var(--accent),#c084fc);color:#fff;font-family:'DM Sans',sans-serif;font-size:16px;font-weight:700;cursor:pointer;box-shadow:0 8px 24px rgba(124,111,255,.35);transition:transform .15s,opacity .15s}
+    .btn-primary:active{transform:scale(.97);opacity:.9}
+    .btn-danger{display:block;margin:10px 20px 0;width:calc(100% - 40px);padding:14px;border-radius:16px;border:1px solid rgba(248,113,113,.3);background:rgba(248,113,113,.08);color:var(--danger);font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer}
+
+    /* ─── DETAIL ─── */
+    .detail-hero{display:flex;flex-direction:column;align-items:center;padding:24px 20px 12px;text-align:center;gap:10px}
+    .detail-icon{width:82px;height:82px;border-radius:24px;display:flex;align-items:center;justify-content:center;font-size:38px}
+    .detail-name{font-size:24px;font-weight:700;letter-spacing:-.3px}
+    .detail-cat{font-size:13px;font-weight:600;padding:5px 14px;border-radius:20px}
+    .detail-status{font-size:15px;font-weight:600;padding:8px 18px;border-radius:20px;margin-top:2px}
+    .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 20px}
+    .info-tile{background:var(--bg);border:1px solid var(--border);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:5px}
+    .info-tile .ti-ico{font-size:16px}
+    .info-tile .ti-lbl{font-size:11px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+    .info-tile .ti-val{font-size:14px;font-weight:600}
+    .notes-box{margin:10px 20px 0;background:var(--bg);border:1px solid var(--border);border-radius:16px;padding:14px}
+    .notes-box .n-lbl{font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}
+    .notes-box .n-txt{font-size:14px;line-height:1.55;color:var(--text)}
+
+    /* ─── SETTINGS ─── */
+    .settings-hero{margin:0 20px 14px;background:linear-gradient(135deg,#1a1a2e,#22223a);border:1px solid rgba(124,111,255,.2);border-radius:20px;padding:24px;text-align:center}
+    .settings-hero .sh-ico{font-size:50px;margin-bottom:8px}
+    .settings-hero .sh-name{font-size:20px;font-weight:700}
+    .settings-hero .sh-desc{font-size:13px;color:var(--text2);margin-top:6px;line-height:1.5}
+    .settings-block{margin:0 20px 12px;background:var(--surface);border:1px solid var(--border);border-radius:18px;overflow:hidden}
+    .s-row{padding:14px 16px;display:flex;align-items:center;gap:12px;border-top:1px solid var(--border)}
+    .s-row:first-child{border-top:none}
+    .s-row-ico{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+    .s-row-lbl{flex:1;font-size:14px}
+    .s-row-val{font-size:15px;font-weight:700;color:var(--text2);font-family:'DM Mono',monospace}
+
+    /* ─── INSTALL HINT ─── */
+    .install-hint{margin:0 20px 12px;padding:14px 16px;background:rgba(124,111,255,.1);border:1px solid rgba(124,111,255,.2);border-radius:16px;display:flex;align-items:center;gap:12px}
+    .install-hint .ih-txt{flex:1}
+    .install-hint .ih-title{font-size:14px;font-weight:700;color:var(--accent2)}
+    .install-hint .ih-sub{font-size:12px;color:var(--text2);margin-top:2px;line-height:1.4}
+    .install-hint .ih-close{font-size:18px;color:var(--text3);cursor:pointer;padding:4px}
+
+    /* ─── EMPTY ─── */
+    .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:56px 20px;text-align:center}
+    .empty .e-ico{font-size:52px;opacity:.25}
+    .empty .e-t{font-size:17px;font-weight:600;color:var(--text2)}
+    .empty .e-s{font-size:13px;color:var(--text3)}
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HOME -->
+  <div class="screen active" id="s-home">
+    <div class="topbar"><h1>💊 MediScadenza</h1><div class="sub">La tua farmacia di casa</div></div>
+    <div id="home-install"></div>
+    <div id="home-alert"></div>
+    <div class="stat-grid" id="home-stats"></div>
+    <div id="home-content"></div>
+  </div>
+
+  <!-- LIST -->
+  <div class="screen" id="s-list">
+    <div class="topbar"><h1>Medicinali</h1></div>
+    <div class="search-wrap">
+      <div class="search-box">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input id="q" type="search" placeholder="Cerca..." oninput="renderList()"/>
+      </div>
+    </div>
+    <div class="chips-wrap" id="chips"></div>
+    <div class="med-list" id="list-out"></div>
+  </div>
+
+  <!-- CATEGORIES -->
+  <div class="screen" id="s-cat">
+    <div class="topbar"><h1>Categorie</h1></div>
+    <div id="cat-out" style="padding-bottom:8px"></div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="screen" id="s-info">
+    <div class="topbar"><h1>Info</h1></div>
+    <div class="settings-hero"><div class="sh-ico">💊</div><div class="sh-name">MediScadenza</div><div class="sh-desc">Versione 1.0 · PWA<br>Nessuna installazione, nessun account.<br>Tutto sul tuo dispositivo.</div></div>
+    <div class="section-title">Riepilogo</div>
+    <div class="settings-block" id="info-stats"></div>
+    <div class="section-title">Come usare l'app</div>
+    <div class="settings-block">
+      <div class="s-row"><div class="s-row-ico" style="background:rgba(124,111,255,.15)">📲</div><div class="s-row-lbl" style="font-size:13px;color:var(--text2)">Su Safari: tocca <b>Condividi</b> → <b>"Aggiungi a schermata Home"</b> per installare come app</div></div>
+      <div class="s-row"><div class="s-row-ico" style="background:rgba(251,191,36,.15)">🔴</div><div class="s-row-lbl" style="font-size:13px;color:var(--text2)">Il colore del badge mostra lo stato: verde = ok, giallo = attenzione, arancio = urgente, rosso = scaduto</div></div>
+      <div class="s-row"><div class="s-row-ico" style="background:rgba(52,211,153,.15)">💾</div><div class="s-row-lbl" style="font-size:13px;color:var(--text2)">I dati sono salvati localmente — non serve internet dopo il primo caricamento</div></div>
+    </div>
+    <button class="btn-danger" onclick="if(confirm('Eliminare tutto?')){medicines=[];save();renderAll()}">🗑️ Elimina tutti i medicinali</button>
+    <div style="text-align:center;padding:24px 20px;color:var(--text3);font-size:12px">Fatto con ❤️ per la salute familiare</div>
+  </div>
+
+  <!-- TABBAR -->
+  <div id="tabbar">
+    <button class="tab-btn active" onclick="go('home',this)">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Home
+    </button>
+    <button class="tab-btn" onclick="go('list',this)">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      Lista
+    </button>
+    <button class="fab" onclick="openForm()">＋</button>
+    <button class="tab-btn" onclick="go('cat',this)">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Categorie
+    </button>
+    <button class="tab-btn" onclick="go('info',this)">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      Info
+    </button>
+  </div>
+</div>
+
+<!-- ADD/EDIT OVERLAY -->
+<div class="overlay" id="ov-form" onclick="bgClose(event,'ov-form')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-ttl" id="form-ttl">Nuovo medicinale</div>
+
+    <div class="f-section">
+      <label class="f-label">Nome</label>
+      <input class="f-input" id="fn" type="text" placeholder="es. Tachipirina 1000mg" autocomplete="off"/>
+    </div>
+
+    <div class="f-section">
+      <label class="f-label">Categoria</label>
+      <div class="cat-grid" id="f-cats"></div>
+    </div>
+
+    <div class="f-section">
+      <label class="f-label">Scadenza (mese/anno)</label>
+      <input class="f-input" id="fd" type="month"/>
+    </div>
+
+    <div class="f-section">
+      <label class="f-label">Quantità</label>
+      <div class="qty-row">
+        <div class="qty-btn" onclick="dq(-1)">−</div>
+        <div class="qty-val" id="fq-d">1</div>
+        <div class="qty-btn" onclick="dq(1)">＋</div>
+        <select class="f-input" id="fu" style="flex:1">
+          <option>compresse</option><option>capsule</option><option>bustine</option><option>ml</option><option>gocce</option><option>cerotti</option><option>supposte</option><option>fiale</option><option>flaconi</option><option>confezioni</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="f-section">
+      <label class="f-label">Avvisami prima della scadenza</label>
+      <div class="notify-row" id="f-notify"></div>
+    </div>
+
+    <div class="f-section">
+      <label class="f-label">Note (opzionale)</label>
+      <textarea class="f-input" id="fnotes" placeholder="Posologia, prescrizione, note..."></textarea>
+    </div>
+
+    <button class="btn-primary" onclick="saveMed()">Aggiungi medicinale</button>
+    <button class="btn-danger" id="btn-del" style="display:none" onclick="delMed()">Elimina medicinale</button>
+    <div style="height:8px"></div>
+  </div>
+</div>
+
+<!-- DETAIL OVERLAY -->
+<div class="overlay" id="ov-detail" onclick="bgClose(event,'ov-detail')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="detail-hero" id="dh"></div>
+    <div class="info-grid" id="dg"></div>
+    <div id="dn"></div>
+    <button class="btn-primary" style="margin-top:14px" onclick="editFromDetail()">✏️ Modifica</button>
+    <div style="height:8px"></div>
+  </div>
+</div>
+
+<script>
+// ─── DATA ───
+const CATS=[
+  {id:'analgesico',      l:'Analgesico',       e:'💊',c:'#f87171',b:'rgba(248,113,113,.12)'},
+  {id:'antibiotico',     l:'Antibiotico',      e:'🔬',c:'#34d399',b:'rgba(52,211,153,.12)'},
+  {id:'antinfiammatorio',l:'Antinfiammatorio', e:'🔥',c:'#fbbf24',b:'rgba(251,191,36,.12)'},
+  {id:'cardiologico',    l:'Cardiologico',     e:'❤️',c:'#f472b6',b:'rgba(244,114,182,.12)'},
+  {id:'vitamina',        l:'Vitamina/Integ.',  e:'🌿',c:'#6ee7b7',b:'rgba(110,231,183,.12)'},
+  {id:'gastrico',        l:'Gastrico',         e:'🫧',c:'#93c5fd',b:'rgba(147,197,253,.12)'},
+  {id:'altro',           l:'Altro',            e:'🧪',c:'#c4b5fd',b:'rgba(196,181,253,.12)'},
+];
+const NOTIFS=[3,7,14,30,60,90];
+
+function cat(id){return CATS.find(c=>c.id===id)||CATS[6]}
+function uid(){return Math.random().toString(36).slice(2,9)}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function save(){localStorage.setItem('meds-v2',JSON.stringify(medicines))}
+
+let medicines=JSON.parse(localStorage.getItem('meds-v2')||'null');
+if(!medicines){
+  const mo=(n)=>{const d=new Date();d.setMonth(d.getMonth()+n);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`};
+  medicines=[
+    {id:uid(),name:'Tachipirina 1000',cat:'analgesico',      expiry:mo(8), qty:20,unit:'compresse',  notes:'Per febbre e dolori',    notify:30,added:new Date().toISOString()},
+    {id:uid(),name:'Moment 200mg',    cat:'antinfiammatorio',expiry:mo(0), qty:12,unit:'compresse',  notes:'',                        notify:14,added:new Date().toISOString()},
+    {id:uid(),name:'Vitamina C 1000', cat:'vitamina',        expiry:mo(10),qty:30,unit:'effervescenti',notes:'Stomaco pieno',        notify:30,added:new Date().toISOString()},
+    {id:uid(),name:'Oki 40mg',        cat:'antinfiammatorio',expiry:mo(-1),qty:6, unit:'bustine',    notes:'',                        notify:14,added:new Date().toISOString()},
+    {id:uid(),name:'Augmentin 875mg', cat:'antibiotico',     expiry:mo(1), qty:14,unit:'compresse',  notes:'Prescrizione Dr. Rossi',  notify:7, added:new Date().toISOString()},
+  ];
+  save();
+}
+
+// ─── LOGIC ───
+function days(m){
+  const t=new Date();t.setHours(0,0,0,0);
+  const [y,mo]=m.expiry.split('-');
+  return Math.round((new Date(+y,+mo,0)-t)/86400000);
+}
+function status(m){
+  const d=days(m);
+  if(d<0)  return{k:'exp', l:'Scaduto',   cls:'s-exp', c:'var(--danger)'};
+  if(d<=7) return{k:'crit',l:'Urgente',   cls:'s-crit',c:'var(--crit)'};
+  if(d<=30)return{k:'warn',l:'Attenzione',cls:'s-warn',c:'var(--warn)'};
+  return       {k:'ok',  l:'Valido',    cls:'s-ok',  c:'var(--ok)'};
+}
+function expiryTxt(m){
+  const d=days(m);
+  if(d<0)  return `Scaduto ${-d}g fa`;
+  if(d===0)return 'Scade oggi!';
+  if(d===1)return 'Scade domani';
+  return `Scade tra ${d}g`;
+}
+function fmtMonth(exp){
+  const[y,mo]=exp.split('-');
+  return ['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'][+mo-1]+' '+y;
+}
+
+// ─── ROW HTML ───
+function rowHTML(m){
+  const st=status(m),ct=cat(m.cat);
+  return`<div class="med-row" onclick="openDetail('${m.id}')">
+    <div class="med-icon" style="background:${ct.b}">${ct.e}</div>
+    <div style="flex:1;min-width:0">
+      <div class="med-name">${esc(m.name)}</div>
+      <div class="med-qty">${m.qty} ${m.unit}</div>
+    </div>
+    <div class="med-right">
+      <div class="sbadge ${st.cls}">${st.l}</div>
+      <div class="med-exp">${expiryTxt(m)}</div>
+    </div>
+  </div>`;
+}
+
+// ─── HOME ───
+function renderHome(){
+  const exp=medicines.filter(m=>status(m).k==='exp');
+  const crit=medicines.filter(m=>status(m).k==='crit');
+  const warn=medicines.filter(m=>status(m).k==='warn');
+  const ok=medicines.filter(m=>status(m).k==='ok');
+
+  // Install hint (iOS Safari only, not standalone)
+  const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  const standalone=window.navigator.standalone;
+  const dismissed=localStorage.getItem('inst-dismissed');
+  document.getElementById('home-install').innerHTML=
+    isIOS&&!standalone&&!dismissed
+    ?`<div class="install-hint"><span style="font-size:22px">📲</span><div class="ih-txt"><div class="ih-title">Installa l'app</div><div class="ih-sub">Safari → <b>Condividi</b> → <b>Aggiungi a schermata Home</b></div></div><span class="ih-close" onclick="this.parentElement.remove();localStorage.setItem('inst-dismissed','1')">✕</span></div>`
+    :'';
+
+  // Alert
+  document.getElementById('home-alert').innerHTML=(exp.length||crit.length)
+    ?`<div class="alert-banner"><div class="ab-ico">⚠️</div><div><div class="ab-title">Attenzione!</div><div class="ab-desc">${[exp.length&&`${exp.length} scadut${exp.length>1?'i':'o'}`,crit.length&&`${crit.length} urgenti`].filter(Boolean).join(' e ')}</div></div></div>`
+    :'';
+
+  // Stats
+  document.getElementById('home-stats').innerHTML=`
+    <div class="stat-card sc-purple"><div class="s-ico">💊</div><div class="s-val">${medicines.length}</div><div class="s-lbl">Totale</div></div>
+    <div class="stat-card sc-green"><div class="s-ico">✅</div><div class="s-val">${ok.length}</div><div class="s-lbl">Validi</div></div>
+    <div class="stat-card sc-orange"><div class="s-ico">⏰</div><div class="s-val">${warn.length}</div><div class="s-lbl">Attenzione</div></div>
+    <div class="stat-card sc-red"><div class="s-ico">🚨</div><div class="s-val">${exp.length+crit.length}</div><div class="s-lbl">Urgenti</div></div>`;
+
+  // Content
+  let html='';
+  const upcoming=[...crit,...warn].slice(0,6);
+  if(upcoming.length){html+=`<div class="section-title">⏰ In scadenza presto</div><div class="med-list">${upcoming.map(rowHTML).join('')}</div>`}
+  if(exp.length){html+=`<div class="section-title" style="color:var(--danger)">❌ Medicinali scaduti</div><div class="med-list">${exp.map(rowHTML).join('')}</div>`}
+  if(!upcoming.length&&!exp.length&&ok.length){html=`<div class="empty"><div class="e-ico">🎉</div><div class="e-t">Tutto a posto!</div><div class="e-s">Nessun medicinale in scadenza</div></div>`}
+  if(!medicines.length){html=`<div class="empty"><div class="e-ico">💊</div><div class="e-t">Nessun medicinale</div><div class="e-s">Tocca + per aggiungerne uno</div></div>`}
+  document.getElementById('home-content').innerHTML=html;
+
+  // Info stats
+  document.getElementById('info-stats').innerHTML=`
+    <div class="s-row"><div class="s-row-ico" style="background:rgba(124,111,255,.15)">💊</div><div class="s-row-lbl">Totale</div><div class="s-row-val">${medicines.length}</div></div>
+    <div class="s-row"><div class="s-row-ico" style="background:rgba(52,211,153,.15)">✅</div><div class="s-row-lbl">Validi</div><div class="s-row-val">${ok.length}</div></div>
+    <div class="s-row"><div class="s-row-ico" style="background:rgba(251,191,36,.15)">⏰</div><div class="s-row-lbl">Attenzione (≤30g)</div><div class="s-row-val">${warn.length}</div></div>
+    <div class="s-row"><div class="s-row-ico" style="background:rgba(248,113,113,.15)">🚨</div><div class="s-row-lbl">Urgenti / Scaduti</div><div class="s-row-val">${exp.length+crit.length}</div></div>`;
+}
+
+// ─── LIST ───
+let activeF='all';
+function initChips(){
+  const fs=[{id:'all',l:'Tutti'},{id:'exp',l:'Scaduti'},{id:'crit',l:'Urgenti'},{id:'warn',l:'Attenzione'},{id:'ok',l:'Validi'}];
+  document.getElementById('chips').innerHTML=fs.map(f=>`<div class="chip${f.id===activeF?' active':''}" onclick="setF('${f.id}')">${f.l}</div>`).join('');
+}
+function setF(f){activeF=f;initChips();renderList()}
+function renderList(){
+  const q=(document.getElementById('q')||{}).value?.toLowerCase()||'';
+  const list=medicines
+    .filter(m=>!q||m.name.toLowerCase().includes(q)||cat(m.cat).l.toLowerCase().includes(q))
+    .filter(m=>activeF==='all'||status(m).k===activeF)
+    .sort((a,b)=>days(a)-days(b));
+  document.getElementById('list-out').innerHTML=list.length
+    ?list.map(rowHTML).join('')
+    :`<div class="empty"><div class="e-ico">🔍</div><div class="e-t">Nessun risultato</div><div class="e-s">Prova un altro filtro</div></div>`;
+}
+
+// ─── CATEGORIES ───
+function renderCat(){
+  document.getElementById('cat-out').innerHTML=CATS.map(ct=>{
+    const ms=medicines.filter(m=>m.cat===ct.id).sort((a,b)=>days(a)-days(b));
+    if(!ms.length)return'';
+    return`<div class="cat-section">
+      <div class="cat-hdr" onclick="toggleCat(this)">
+        <div class="cat-hdr-icon" style="background:${ct.b}">${ct.e}</div>
+        <div class="cat-hdr-name">${ct.l}</div>
+        <div class="cat-hdr-cnt" style="background:${ct.b};color:${ct.c}">${ms.length}</div>
+        <span class="cat-chev open">▾</span>
+      </div>
+      <div class="cat-body">${ms.map(m=>{const st=status(m);return`
+        <div class="cat-row" onclick="openDetail('${m.id}')">
+          <span style="font-size:18px">${ct.e}</span>
+          <span class="cat-row-name">${esc(m.name)}</span>
+          <div style="text-align:right">
+            <div class="sbadge ${st.cls}" style="margin:0 0 3px">${st.l}</div>
+            <div style="font-size:11px;color:var(--text3)">${fmtMonth(m.expiry)}</div>
+          </div>
+        </div>`;}).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+function toggleCat(hdr){
+  const body=hdr.nextElementSibling;
+  const chev=hdr.querySelector('.cat-chev');
+  const open=chev.classList.contains('open');
+  body.style.display=open?'none':'block';
+  hdr.classList.toggle('solo',open);
+  chev.classList.toggle('open',!open);
+}
+
+// ─── DETAIL ───
+let curId=null;
+function openDetail(id){
+  curId=id;const m=medicines.find(x=>x.id===id);if(!m)return;
+  const st=status(m),ct=cat(m.cat),d=days(m);
+  const dtxt=d<0?`Scaduto ${-d} giorni fa`:d===0?'Scade oggi!':d===1?'Scade domani':`Scade tra ${d} giorni`;
+  document.getElementById('dh').innerHTML=`
+    <div class="detail-icon" style="background:${ct.b}">${ct.e}</div>
+    <div class="detail-name">${esc(m.name)}</div>
+    <div class="detail-cat" style="background:${ct.b};color:${ct.c}">${ct.l}</div>
+    <div class="detail-status" style="color:${st.c};background:${st.c.replace('var(--','').replace(')','').replace('danger','rgba(248,113,113,.12)').replace('crit','rgba(251,146,60,.12)').replace('warn','rgba(251,191,36,.12)').replace('ok','rgba(52,211,153,.12)')}">${dtxt}</div>`;
+  document.getElementById('dg').innerHTML=`
+    <div class="info-tile"><div class="ti-ico">📅</div><div class="ti-lbl">Scadenza</div><div class="ti-val" style="color:${st.c}">${fmtMonth(m.expiry)}</div></div>
+    <div class="info-tile"><div class="ti-ico">🔢</div><div class="ti-lbl">Quantità</div><div class="ti-val">${m.qty} ${m.unit}</div></div>
+    <div class="info-tile"><div class="ti-ico">🔔</div><div class="ti-lbl">Notifica</div><div class="ti-val">${m.notify}g prima</div></div>
+    <div class="info-tile"><div class="ti-ico">📆</div><div class="ti-lbl">Aggiunto il</div><div class="ti-val">${new Date(m.added).toLocaleDateString('it-IT',{day:'numeric',month:'short'})}</div></div>`;
+  document.getElementById('dn').innerHTML=m.notes
+    ?`<div class="notes-box"><div class="n-lbl">Note</div><div class="n-txt">${esc(m.notes)}</div></div>`:'';
+  open('ov-detail');
+}
+function editFromDetail(){close('ov-detail');setTimeout(()=>openForm(curId),220)}
+
+// ─── FORM ───
+let eId=null,fQty=1,fNotify=30,fCat='analgesico';
+function openForm(id=null){
+  eId=id;const m=id?medicines.find(x=>x.id===id):null;
+  document.getElementById('form-ttl').textContent=m?'Modifica medicinale':'Nuovo medicinale';
+  document.getElementById('btn-del').style.display=m?'block':'none';
+  document.querySelector('#ov-form .btn-primary').textContent=m?'Aggiorna medicinale':'Aggiungi medicinale';
+  document.getElementById('fn').value=m?.name||'';
+  document.getElementById('fd').value=m?.expiry||'';
+  document.getElementById('fnotes').value=m?.notes||'';
+  document.getElementById('fu').value=m?.unit||'compresse';
+  fQty=m?.qty||1;fNotify=m?.notify||30;fCat=m?.cat||'analgesico';
+  document.getElementById('fq-d').textContent=fQty;
+  document.getElementById('f-cats').innerHTML=CATS.map(ct=>`<div class="cat-chip${fCat===ct.id?' active':''}" onclick="selCat('${ct.id}',this)"><span>${ct.e}</span><span>${ct.l}</span></div>`).join('');
+  document.getElementById('f-notify').innerHTML=NOTIFS.map(n=>`<div class="notify-chip${fNotify===n?' active':''}" onclick="selNotify(${n},this)">${n}g</div>`).join('');
+  open('ov-form');
+  setTimeout(()=>document.getElementById('fn').focus(),350);
+}
+function selCat(id,el){fCat=id;document.querySelectorAll('.cat-chip').forEach(c=>c.classList.remove('active'));el.classList.add('active')}
+function selNotify(n,el){fNotify=n;document.querySelectorAll('.notify-chip').forEach(c=>c.classList.remove('active'));el.classList.add('active')}
+function dq(d){fQty=Math.max(1,fQty+d);document.getElementById('fq-d').textContent=fQty}
+
+function saveMed(){
+  const name=document.getElementById('fn').value.trim();
+  const expiry=document.getElementById('fd').value;
+  const unit=document.getElementById('fu').value;
+  const notes=document.getElementById('fnotes').value.trim();
+  if(!name){document.getElementById('fn').focus();document.getElementById('fn').style.borderColor='var(--danger)';return}
+  if(!expiry){document.getElementById('fd').focus();document.getElementById('fd').style.borderColor='var(--danger)';return}
+  if(eId){
+    const i=medicines.findIndex(x=>x.id===eId);
+    if(i>=0)medicines[i]={...medicines[i],name,cat:fCat,expiry,qty:fQty,unit,notes,notify:fNotify};
+  }else{
+    medicines.push({id:uid(),name,cat:fCat,expiry,qty:fQty,unit,notes,notify:fNotify,added:new Date().toISOString()});
+  }
+  save();close('ov-form');renderAll();
+}
+function delMed(){
+  const m=medicines.find(x=>x.id===eId);
+  if(!confirm(`Eliminare "${m?.name}"?`))return;
+  medicines=medicines.filter(x=>x.id!==eId);
+  save();close('ov-form');renderAll();
+}
+
+// ─── NAV ───
+function go(tab,btn){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('s-'+tab).classList.add('active');
+  btn.classList.add('active');
+  if(tab==='list'){initChips();renderList()}
+  if(tab==='cat')renderCat();
+  if(tab==='info')renderHome();
+}
+function open(id){document.getElementById(id).classList.add('open')}
+function close(id){document.getElementById(id).classList.remove('open')}
+function bgClose(e,id){if(e.target===document.getElementById(id))close(id)}
+function renderAll(){renderHome();renderList();renderCat()}
+
+// ─── SERVICE WORKER ───
+if('serviceWorker'in navigator){
+  navigator.serviceWorker.register('./sw.js').catch(()=>{});
+}
+
+renderAll();
+</script>
+</body>
+</html>
