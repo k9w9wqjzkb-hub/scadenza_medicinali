@@ -4,8 +4,8 @@
   "description": "Gestisci le scadenze dei medicinali di casa",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#0f0f14",
-  "theme_color": "#0f0f14",
+  "background_color": "#0d0d14",
+  "theme_color": "#0d0d14",
   "orientation": "portrait",
   "lang": "it",
   "icons": [
